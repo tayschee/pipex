@@ -5,63 +5,71 @@
 
 int main()
 {
-	int i;
-	char buf[10] = {0};
-	pid_t pid;
-	int pipefd[2];
-	int pipefd2[2];
 	int status;
-	int fdin;
+	int pp1[2];
+	int pp2[2];
+	int pp3[2];
+	int i = 0;
+	pid_t pid;
 
-	if ((pid = fork()) < 0)
-	{
-		printf("error\n");
-		return 1;
-	}
+	pipe(pp1);
+	pid = fork();
 	if (pid == 0)
 	{
-		if (pipe(pipefd) < 0)
-			return 1;
-		if ((pid = fork()) < 0)
-		{
-			printf("error\n");
-			return 1;
-		}
-		if (pid == 0)
-		{
-			if ((pid = fork()) < 0)
-			{
-				printf("error\n");
-				return 1;
-			}
-			if (pid == 0)
-			{
-				sleep(10);
-				close(pipefd[1]);
-				dup2(pipefd[0], 0);
-				dup2(pipefd[1], 1);
-				execl("/bin/echo", "echo", "\n\n", NULL);
-			}
-			else
-			{
-				//dup2(pipefd[1], 1);
-				dup2(pipefd[0], 0);
-				execl("usr/bin/grep", "grep", "a", NULL);
-			}
-		}
-		else
-		{
-			close(pipefd[0]);
-			dup2(pipefd[1], 1);
-			//close(pipefd[1]);
-			execl("/bin/ls", "ls", NULL);
-		}
+		close(pp1[0]);
+		dup2(pp1[1], 1);
+		close(pp1[1]);
+		execlp("/bin/cat", "cat", NULL);
 	}
 	else
 	{
-		waitpid(-1, &status, 0);
-		waitpid(-1, &status, 0);
-		waitpid(-1, &status, 0);
+		close(pp1[1]);
+		pipe(pp2);
+		pid = fork();
+		if (pid == 0)
+		{
+			close(pp2[0]);
+
+			dup2(pp1[0], 0);
+			close(pp1[0]);
+			dup2(pp2[1], 1);
+			close(pp2[1]);
+			execlp("/bin/cat", "cat", NULL);
+		}
+		else
+		{
+			close(pp1[0]);
+			close(pp2[1]);
+			pipe(pp3);
+			pid = fork();
+			if (pid == 0)
+			{
+				close(pp3[0]);
+				dup2(pp2[0], 0);
+				close(pp2[0]);
+				dup2(pp3[1], 1);
+				execlp("/bin/cat", "cat", NULL);
+			}
+			else
+			{
+				close(pp2[0]);
+				close(pp3[1]);
+				pid = fork();
+				if (pid == 0)
+				{
+					dup2(pp3[0], 0);
+					close(pp3[0]);
+					execlp("/bin/ls", "ls", NULL);
+				}
+				close(pp3[0]);
+				while (i < 4)
+				{
+					++i;
+					waitpid(-1, &status, 0);
+				}
+			}
+		}
 	}
+
 	return 0;
 }
